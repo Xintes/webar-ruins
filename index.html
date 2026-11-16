@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#101820">
-  <title>AR — историческая реконструкция</title>
+  <title>WebAR — массив объектов от ориентира</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="importmap">
     {
@@ -20,16 +20,16 @@
   <main id="ar-container" aria-label="Изображение с камеры с дополненной реальностью"></main>
 
   <header class="topbar">
-    <div class="brand">АРХИТЕКТУРА <span>· AR</span></div>
+    <div class="brand">WEBAR <span>· ОБЪЕКТЫ</span></div>
     <div id="status" class="status" role="status" aria-live="polite">Готово к запуску</div>
   </header>
 
   <section class="welcome" id="welcome">
     <div class="intro-icon" aria-hidden="true">⌖</div>
-    <h1>Историческая реконструкция</h1>
-    <p>Разрешите доступ к камере и наведите её на узнаваемый участок объекта.</p>
+    <h1>Объекты от опорного куба</h1>
+    <p>Наведите камеру на изображение-ориентир. Справа от него появится цепочка виртуальных объектов.</p>
     <button id="start-button" class="primary">Включить AR</button>
-    <p class="hint">Для теста используется образец изображения из MindAR. Для настоящего объекта замените файл цели.</p>
+    <p class="hint">Сначала используйте стандартную картинку MindAR. Для белого кубика потребуется рисунок на одной грани: гладкая белая поверхность не даёт достаточно деталей для распознавания.</p>
   </section>
 
   <div class="bottom-bar" id="bottom-bar" hidden>
@@ -38,8 +38,8 @@
   </div>
 
   <aside class="editor" id="editor" hidden>
-    <h2>Настройка модели</h2>
-    <p>Значения локальны для этого браузера. После настройки перенесите их в settings.js.</p>
+    <h2>Положение всей сцены</h2>
+    <p>Смещайте и вращайте ВСЕ объекты вместе. Количество и направление цепочек задаются отдельно в settings.js. После настройки перенесите transform в settings.js.</p>
     <div id="fields" class="fields"></div>
     <div class="editor-actions">
       <button id="copy-button" type="button">Скопировать настройки</button>

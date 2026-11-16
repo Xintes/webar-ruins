@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MindARThree } from "mindar-image-three";
 import { SETTINGS } from "./settings.js";
+import { createObjectArrays } from "./objects.js";
 
 const container = document.querySelector("#ar-container");
 const statusElement = document.querySelector("#status");
@@ -81,6 +82,7 @@ function makeDemoBuilding() {
 }
 
 async function loadModel() {
+  if (SETTINGS.mode === "objects") return createObjectArrays(SETTINGS.arrays);
   if (!SETTINGS.modelFile) return makeDemoBuilding();
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync(SETTINGS.modelFile);
@@ -122,7 +124,7 @@ async function startAR() {
     anchor.group.add(modelRoot);
     applyTransform();
 
-    anchor.onTargetFound = () => setStatus("Ориентир найден · реконструкция активна");
+    anchor.onTargetFound = () => setStatus("Ориентир найден · виртуальные объекты активны");
     anchor.onTargetLost = () => setStatus("Ориентир потерян · наведите камеру снова");
 
     await mindar.start();
