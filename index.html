@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#101820">
+  <title>AR — историческая реконструкция</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main id="ar-container" aria-label="Изображение с камеры с дополненной реальностью"></main>
+
+  <header class="topbar">
+    <div class="brand">АРХИТЕКТУРА <span>· AR</span></div>
+    <div id="status" class="status" role="status" aria-live="polite">Готово к запуску</div>
+  </header>
+
+  <section class="welcome" id="welcome">
+    <div class="intro-icon" aria-hidden="true">⌖</div>
+    <h1>Историческая реконструкция</h1>
+    <p>Разрешите доступ к камере и наведите её на узнаваемый участок объекта.</p>
+    <button id="start-button" class="primary">Включить AR</button>
+    <p class="hint">Для теста используется образец изображения из MindAR. Для настоящего объекта замените файл цели.</p>
+  </section>
+
+  <div class="bottom-bar" id="bottom-bar" hidden>
+    <p>Направьте камеру на ориентир</p>
+    <button id="stop-button" type="button">Завершить</button>
+  </div>
+
+  <aside class="editor" id="editor" hidden>
+    <h2>Настройка модели</h2>
+    <p>Значения локальны для этого браузера. После настройки перенесите их в settings.js.</p>
+    <div id="fields" class="fields"></div>
+    <div class="editor-actions">
+      <button id="copy-button" type="button">Скопировать настройки</button>
+      <button id="reset-button" type="button">Сбросить</button>
+    </div>
+  </aside>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

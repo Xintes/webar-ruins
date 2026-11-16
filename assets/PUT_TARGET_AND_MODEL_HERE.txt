@@ -1,0 +1,2 @@
+Разместите здесь assets/targets.mind и assets/building.glb.
+Смотрите README.md и settings.js.

@@ -1,0 +1,28 @@
+:root { color-scheme: dark; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; background: #101820; color: white; overflow: hidden; }
+[hidden] { display: none !important; }
+#ar-container { position: fixed; inset: 0; overflow: hidden; }
+.topbar { position: fixed; z-index: 10; top: 0; left: 0; right: 0; padding: max(16px, env(safe-area-inset-top)) 18px 13px; background: linear-gradient(#101820e8, #10182000); }
+.brand { font-size: 12px; font-weight: 800; letter-spacing: .16em; }
+.brand span { color: #c7a774; }
+.status { max-width: 90vw; margin-top: 10px; font-size: 13px; opacity: .92; overflow-wrap: anywhere; }
+.welcome { position: fixed; z-index: 8; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 390px); padding: 26px; text-align: center; border: 1px solid #ffffff29; border-radius: 22px; background: #17232ded; box-shadow: 0 20px 80px #0008; }
+.intro-icon { font-size: 50px; color: #d9b47c; }
+h1 { margin: 9px 0; font-size: 24px; }
+.welcome p { line-height: 1.5; font-size: 14px; color: #d8e1e5; }
+button { cursor: pointer; color: white; border: 1px solid #ffffff45; border-radius: 12px; padding: 11px 14px; background: #263743; font: inherit; }
+button:disabled { cursor: wait; opacity: .6; }
+button.primary { width: 100%; border: 0; background: #c49b61; color: #151e25; font-weight: 800; }
+.welcome .hint { margin-bottom: 0; font-size: 12px; opacity: .75; }
+.bottom-bar { position: fixed; z-index: 8; left: 15px; right: 15px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; background: #101820cc; border-radius: 12px; }
+.bottom-bar p { font-size: 13px; margin: 0; }
+.editor { position: fixed; z-index: 12; right: 12px; top: 90px; width: min(280px, 86vw); max-height: calc(100dvh - 175px); overflow: auto; padding: 15px; border: 1px solid #ffffff37; border-radius: 14px; background: #15232af0; }
+.editor h2 { margin: 0 0 7px; font-size: 17px; }
+.editor p { font-size: 11px; line-height: 1.4; color: #b9c7ce; }
+.fields { display: grid; gap: 7px; }
+.fields label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.fields input { width: 88px; padding: 8px; background: #0c171d; color: white; border: 1px solid #ffffff50; border-radius: 7px; }
+.editor-actions { display: flex; gap: 5px; margin-top: 12px; }
+.editor-actions button { font-size: 11px; padding: 7px; }
+@media (max-width: 600px) { .editor { right: 8px; top: 85px; width: 200px; } .fields input { width: 69px; } }
