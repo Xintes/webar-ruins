@@ -1,0 +1,18 @@
+{
+  "desk_cube": {
+    "label": "Белый кубик — контрастный фон",
+    "method": "white_cube",
+    "roi": [0.07, 0.12, 0.86, 0.80],
+    "saturation_max": 85,
+    "brightness_min": 145,
+    "min_contrast": 18,
+    "min_area_fraction": 0.003,
+    "max_area_fraction": 0.42
+  },
+  "stone_wall": {
+    "label": "Фасад/руины — опорная фотография",
+    "method": "orb_reference",
+    "reference": "stone_wall.jpg",
+    "min_matches": 16
+  }
+}

@@ -89,3 +89,10 @@ https://xintes.github.io/webar-ruins/?edit=1
 - Привязка к **одной плоской грани**, а не полноценная модель физического куба: не ожидайте стабильного распознавания со всех сторон.
 
 Документация: https://hiukim.github.io/mind-ar-js-doc/quick-start/compile/ и https://hiukim.github.io/mind-ar-js-doc/more-examples/threejs-image/
+
+---
+
+## Новый режим OpenCV (без наклеек и без нейросетей)
+
+Это независимая экспериментальная страница `cv/`, старый MindAR сохранён.
+Для запуска серверного распознавания, настройки зон и тестирования смотрите **[CV_SETUP.md](./CV_SETUP.md)**.

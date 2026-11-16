@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111b23">
+  <title>WebAR — OpenCV без меток</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <video id="video" autoplay muted playsinline webkit-playsinline></video>
+    <img id="photo" alt="Загруженный снимок" hidden>
+    <canvas id="outline" aria-hidden="true"></canvas>
+    <div id="three-layer" aria-hidden="true"></div>
+  </main>
+  <header class="header">
+    <div class="brand">WEBAR · <span>OpenCV</span></div>
+    <div class="status" id="status" role="status">Ожидается запуск</div>
+  </header>
+  <section class="panel">
+    <label for="zone">Зона обзора</label>
+    <select id="zone">
+      <option value="desk_cube">Белый кубик — контрастный фон</option>
+      <option value="stone_wall">Фасад/руины — фотография зоны</option>
+    </select>
+    <div class="actions">
+      <button id="start" type="button">Включить камеру</button>
+      <button id="stop" type="button" hidden>Остановить</button>
+    </div>
+    <label class="file-label" for="photo-input">Проверить готовую фотографию</label>
+    <input id="photo-input" type="file" accept="image/*">
+    <div class="metrics"><span id="network">API: не проверен</span><span id="result">Поиск не запущен</span></div>
+    <p>В этой версии контур — результат OpenCV, а виртуальные объекты лишь следуют за ним на экране. Точная 3D-поза ещё не вычисляется.</p>
+  </section>
+  <canvas id="capture" hidden></canvas>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+:root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark; }
+* { box-sizing: border-box; }
+html,body { margin:0; min-height:100%; background:#101a21; color:#eaf0f4; }
+.stage { position:fixed; inset:0; background:#0a1218; overflow:hidden; }
+#video,#photo,#outline,#three-layer { position:absolute; width:100%; height:100%; inset:0; }
+#video,#photo { object-fit:contain; }
+#outline,#three-layer { pointer-events:none; }
+#three-layer canvas { display:block; width:100%; height:100%; }
+.header { position:fixed; z-index:4; top:0; left:0; right:0; padding:max(18px,env(safe-area-inset-top)) 16px 23px; background:linear-gradient(#0c1824e8,transparent); pointer-events:none; }
+.brand { font-weight:750; font-size:13px; letter-spacing:.08em; }
+.brand span { color:#91d1eb; }
+.status { margin-top:8px; font-size:13px; max-width:75ch; }
+.panel { position:fixed; z-index:5; left:10px; right:10px; bottom:max(10px,env(safe-area-inset-bottom)); max-width:490px; padding:13px; background:#162630ea; backdrop-filter:blur(10px); border:1px solid #ffffff22; border-radius:16px; box-shadow:0 16px 36px #0006; }
+.panel label { display:block; font-weight:650; font-size:13px; margin-bottom:7px; }
+select,button,.file-label { color:#fff; border-radius:9px; padding:10px 11px; font:inherit; background:#2c414c; border:1px solid #ffffff33; }
+select { display:block; width:100%; font-size:13px; }
+button { font-size:13px; cursor:pointer; }
+button:disabled { opacity:.5; }
+.actions { display:flex; margin:9px 0; gap:8px; }
+#start { background:#d0ae70; color:#17202a; border:0; font-weight:750; }
+.file-label { display:inline-block !important; font-size:12px !important; font-weight:500 !important; cursor:pointer; }
+#photo-input { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+.metrics { display:flex; justify-content:space-between; gap:10px; margin-top:8px; font-size:11px; color:#b6c8d4; overflow-wrap:anywhere; }
+.panel p { margin:8px 0 0; font-size:11px; color:#b6c8d4; line-height:1.4; }
+@media(min-width:720px) { .panel { bottom:20px; left:20px; right:auto; width:420px; } }
