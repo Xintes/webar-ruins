@@ -31,7 +31,7 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return RedirectResponse("/cv/")
+    return RedirectResponse("/track/")
 
 
 @app.get("/api/health")

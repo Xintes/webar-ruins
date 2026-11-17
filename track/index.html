@@ -23,7 +23,8 @@
       <label>Обзорная зона <select id="zone"></select></label>
       <div class="buttons"><button id="start" class="accent">Включить камеру</button><button id="stop" disabled>Остановить</button><label class="file-button">Проверить фотографию <input id="file" type="file" accept="image/jpeg,image/png,image/webp" hidden></label></div>
       <div class="toggles"><label><input id="show-overlay" type="checkbox" checked> Показывать стену</label><label><input id="show-debug" type="checkbox"> Показать найденную область</label></div>
-      <div id="status" role="status">Сначала запускаем сервер и загружаем ракурсы.</div>
+      <div id="status" role="status">Проверяем подключение к серверу OpenCV…</div>
+      <p class="description"><strong>Важно:</strong> видеокамера сама по себе не означает, что запущено распознавание. На GitHub Pages нужен отдельный HTTPS API; локально запускай Python FastAPI и открывай /track/ на том же компьютере.</p>
       <p class="description">Сервер сопоставляет естественные детали башни с эталонной фотографией. Стена перемещается по найденной перспективе. Это первый режим для <b>ограниченной зоны обзора</b>, пока без метрической 3D-позы и корректного параллакса при обходе башни.</p>
       <details><summary>Подключение API на телефоне</summary><label>HTTPS-адрес твоего OpenCV-сервера <input id="api" placeholder="https://ar-api.example.org" type="url"></label><button id="save-api">Сохранить адрес</button><p>На компьютере с локальным сервером оставь поле пустым. Для GitHub Pages нужен отдельный HTTPS-сервер; обычный HTTP-адрес локального ПК браузер блокирует.</p></details>
     </section>

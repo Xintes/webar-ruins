@@ -17,6 +17,10 @@ let imageCanvas = document.createElement("canvas");
 let imageCtx = imageCanvas.getContext("2d", {willReadFrequently: false});
 let viewW = 0, viewH = 0, lastDraw = 0;
 let photoMode = false, photoUrl = null, validUntil = 0;
+// Без подключённого Python API камера не должна создавать видимость работающего трекинга.
+let apiReady = false;
+// Номер сессии предотвращает появление устаревшего результата после остановки камеры.
+let trackingGeneration = 0;
 
 function apiPath(path) { return apiOrigin + path; }
 function setStatus(message) { status.textContent = message; }
@@ -116,15 +120,17 @@ function render(ts) {
   }
   requestAnimationFrame(render);
 }
-async function analyze(blob) {
+async function analyze(blob, generation = trackingGeneration) {
   const fd=new FormData();fd.append('frame',blob,'frame.jpg');fd.append('zone',zonePicker.value);
   const started=performance.now();
   const response=await fetch(apiPath('/api/track/frame'),{method:'POST',body:fd,cache:'no-store'});
   if(!response.ok) throw new Error(`API ${response.status}: ${(await response.text()).slice(0,140)}`);
   const result=await response.json();
+  if (generation !== trackingGeneration) return;
   if(!result.found){if(performance.now()>validUntil){resetTrackingAfterLoss();setHint('Не найдено — приблизьтесь к опорному ракурсу');}
     setStatus(`OpenCV: ${result.reason||'Нет совпадений'}. Время запроса ${Math.round(performance.now()-started)} мс`);return;}
   await loadOverlay(result);
+  if (generation !== trackingGeneration) return;
   if(targetPose?.view!==result.view) currentPose=null;
   targetPose=result;poseAt=performance.now();validUntil=photoMode ? Infinity : performance.now()+1500;
   setHint('Башня распознана · стена привязана');
@@ -133,14 +139,19 @@ async function analyze(blob) {
 async function sendCameraFrame(){
   if(!running||busy||video.readyState<2)return;
   busy=true;
+  const generation = trackingGeneration;
   try{imageCtx.drawImage(video,0,0,imageCanvas.width,imageCanvas.height);
     const blob=await new Promise(r=>imageCanvas.toBlob(r,'image/jpeg',.72));
-    if(blob&&running)await analyze(blob);
+    if(blob&&running&&generation===trackingGeneration)await analyze(blob,generation);
   }catch(e){setStatus(`Ошибка: ${e.message}`);}
   finally{busy=false;}
 }
 async function startCamera(){
   if(running)return;
+  if (!apiReady) {
+    setStatus('OpenCV API не подключён. GitHub Pages не выполняет Python: запусти FastAPI на ПК или настрой HTTPS API внизу страницы.');
+    return;
+  }
   if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
     setStatus('Для камеры необходим HTTPS либо localhost. На IP с HTTP камера не включится.');return;
   }
@@ -149,6 +160,7 @@ async function startCamera(){
     stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
     video.srcObject=stream;await video.play();
     setDimensions(video.videoWidth,video.videoHeight);
+    trackingGeneration++;
     photoMode=false;running=true;video.hidden=false;
     stopButton.disabled=false;startButton.disabled=true;
     clearTracking();setHint('Направьте камеру на башню');
@@ -156,6 +168,7 @@ async function startCamera(){
   }catch(e){setStatus(`Камера не запустилась: ${e.message}`);stream?.getTracks().forEach(t=>t.stop());stream=null;startButton.disabled=false;}
 }
 function stopCamera(){
+  trackingGeneration++;
   running=false;clearInterval(timer);timer=null;
   stream?.getTracks().forEach(t=>t.stop());stream=null;
   video.pause();video.srcObject=null;video.hidden=true;
@@ -167,6 +180,7 @@ async function analyzeImageFile(file){
   const bmp=await createImageBitmap(file);
   setDimensions(bmp.width,bmp.height);
   photoMode=true;
+  const generation = trackingGeneration;
   // Показываем загруженную фотографию в той же области как видеокадр.
   const canvas=document.createElement('canvas'); canvas.width=bmp.width;canvas.height=bmp.height;
   canvas.getContext('2d').drawImage(bmp,0,0);bmp.close();
@@ -176,7 +190,8 @@ async function analyzeImageFile(file){
   // Подложка через background, чтобы изображение не мешало overlay.
   scene.style.backgroundImage=`url("${url}")`;
   scene.style.backgroundSize='100% 100%';
-  try{await analyze(data);}catch(e){setStatus(`Ошибка проверки фото: ${e.message}`);}
+  if (!apiReady) {setStatus('Нет подключения к OpenCV API. Открой страницу с работающего локального FastAPI или укажи HTTPS-сервер.');return;}
+  try{await analyze(data,generation);}catch(e){setStatus(`Ошибка проверки фото: ${e.message}`);}
 }
 async function loadZones(){
   const response=await fetch(apiPath('/api/track/zones'));
@@ -184,7 +199,10 @@ async function loadZones(){
   const data=await response.json();
   zonePicker.replaceChildren();
   for(const z of data.zones){const opt=document.createElement('option');opt.value=z.id;opt.textContent=`${z.label} (${z.views} ракурсов)`;zonePicker.appendChild(opt);}
-  if(data.zones.length) setStatus('API подключён. Включи камеру или загрузи фотографию для проверки.');
+  apiReady = data.zones.length > 0;
+  startButton.disabled = !apiReady;
+  if(apiReady) setStatus('OpenCV API подключён. Включи камеру или загрузи фотографию.');
+  else setStatus('На сервере не зарегистрированы обзорные зоны.');
 }
 $('start').addEventListener('click',()=>{scene.style.backgroundImage='none';startCamera();});
 $('stop').addEventListener('click',stopCamera);
@@ -194,5 +212,16 @@ $('save-api').addEventListener('click',()=>{const val=apiInput.value.trim().repl
   if(val && (!val.startsWith('https://')&&!val.startsWith('http://localhost'))) {setStatus('Для телефона нужен HTTPS API');return;}
   localStorage.setItem('webar-cv-api',val);location.reload();});
 window.addEventListener('pagehide',()=>{stopCamera();if(photoUrl) URL.revokeObjectURL(photoUrl);});
-loadZones().catch(e=>setStatus(`Не удалось подключить OpenCV: ${e.message}. На компьютере открывай http://localhost:8000/track/`));
+// На GitHub Pages файл /api/track/zones отсутствует: там только статические страницы.
+if (!apiOrigin && location.hostname.endsWith('.github.io')) {
+  startButton.disabled = true;
+  setStatus('Нет OpenCV API. GitHub Pages публикует страницу, но не Python-сервер. Для распознавания открой локальный http://localhost:8000/track/ с запущенным FastAPI или укажи HTTPS API.');
+} else {
+  startButton.disabled = true;
+  loadZones().catch(e=>{
+    apiReady = false;
+    startButton.disabled = true;
+    setStatus(`Нет соединения с OpenCV API: ${e.message}. Проверь запуск FastAPI и адрес API внизу страницы.`);
+  });
+}
 requestAnimationFrame(render);
