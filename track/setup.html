@@ -1,0 +1,45 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebAR — добавить ракурс</title><link rel="stylesheet" href="./styles.css"></head>
+<body><div id="shell"><header class="toolbar"><div><strong>НАСТРОЙКА · <span>НОВЫЙ РАКУРС</span></strong><small>Распознавание без нейросети</small></div><a href="./">К просмотру</a></header>
+<div class="panel"><h2>Добавление ракурса в OpenCV</h2><p>Здесь ты показываешь программе, что именно нужно узнавать. Опорная фотография должна содержать много характерных деталей сооружения. Рядом с ней — прозрачное PNG-наложение стены, выставленное именно под эту фотографию. Система сопоставляет их автоматически при наведении камеры.</p>
+<form id="train"><label>Зона <select id="zone" name="zone"></select></label><label>Эталонный снимок (JPEG/PNG) <input id="training-photo" name="reference" type="file" accept="image/jpeg,image/png" required></label>
+<p>Мышью выдели на фотографии башню или узнаваемую часть фасада — по этим деталям OpenCV будет узнавать место:</p>
+<canvas id="area-preview" width="720" height="560" style="display:block;width:min(100%,720px);height:auto;border:1px solid #647580;touch-action:none;cursor:crosshair"></canvas>
+<input id="roi" name="roi" type="hidden"><p id="roi-hint">Область ещё не выделена. По умолчанию будет применена область зоны.</p><label>Стена для этого ракурса (прозрачный PNG) <input name="overlay" type="file" accept="image/png" required></label><label>Ключ администратора, только если настроен <input id="admin-key" type="password" autocomplete="off"></label><button class="accent" type="submit">Добавить ракурс</button></form>
+<div id="status" role="status">Эта операция по умолчанию доступна только с localhost на ПК, где запущен OpenCV.</div>
+<p><b>Быстрый путь:</b> открой <a href="../wall-lab/">редактор стены</a>, подгони конструкцию к своему фото и нажми «Экспорт прозрачной стены». Если фото исходное — просто используй эталон из редактора. Добавленные ракурсы кешируются сервером автоматически, перезапуск не требуется.</p>
+<p>При добавлении следующего ракурса стена должна быть подготовлена под его перспективу. Это не «обучение нейросети», а построение набора эталонов для локализации по особенностям снимка.</p></div></div><script>
+const status=document.getElementById('status');
+fetch('/api/track/zones').then(r=>r.json()).then(data=>{
+  for(const z of data.zones){const o=document.createElement('option');o.value=z.id;o.textContent=z.label;document.getElementById('zone').appendChild(o);}
+}).catch(e=>status.textContent='Ошибка API: '+e.message);
+const preview=document.getElementById('area-preview');
+const pctx=preview.getContext('2d');let bitmap=null,drag=false,start=null,selected=null;
+const draw=()=>{pctx.clearRect(0,0,preview.width,preview.height);
+ if(bitmap)pctx.drawImage(bitmap,0,0,preview.width,preview.height);
+ if(selected){pctx.strokeStyle='#00ffae';pctx.lineWidth=3;pctx.strokeRect(selected.x*preview.width,selected.y*preview.height,selected.w*preview.width,selected.h*preview.height);}
+};
+document.getElementById('training-photo').addEventListener('change',async e=>{
+ const file=e.target.files[0];if(!file)return;
+ if(bitmap)bitmap.close();bitmap=await createImageBitmap(file);
+ preview.height=Math.round(preview.width*bitmap.height/bitmap.width);selected=null;
+ document.getElementById('roi').value='';draw();
+});
+const pt=e=>{const r=preview.getBoundingClientRect();return {
+ x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};};
+preview.addEventListener('pointerdown',e=>{if(!bitmap)return;drag=true;start=pt(e);selected=null;preview.setPointerCapture(e.pointerId);});
+preview.addEventListener('pointermove',e=>{if(!drag)return;const p=pt(e);
+ selected={x:Math.min(start.x,p.x),y:Math.min(start.y,p.y),w:Math.abs(p.x-start.x),h:Math.abs(p.y-start.y)};draw();});
+preview.addEventListener('pointerup',()=>{drag=false;if(!selected||selected.w<.06||selected.h<.06)return;
+ document.getElementById('roi').value=JSON.stringify([selected.x,selected.y,selected.w,selected.h]);
+ document.getElementById('roi-hint').textContent='Область распознавания выбрана';});
+
+document.getElementById('train').addEventListener('submit',async e=>{
+  e.preventDefault();status.textContent='Сохраняем эталон...';
+  try{const fd=new FormData(e.target),h={};const key=document.getElementById('admin-key').value.trim();
+    if(key)h['X-Admin-Key']=key;
+    const r=await fetch('/api/track/train',{method:'POST',body:fd,headers:h});
+    const answer=await r.json();if(!r.ok)throw new Error(answer.detail||r.status);
+    status.textContent='Ракурс '+answer.id+' добавлен. Перейди к камере и проверь распознавание.';
+  }catch(err){status.textContent='Ошибка: '+err.message;}
+});
+</script></body></html>

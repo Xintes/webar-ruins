@@ -1,0 +1,9 @@
+{
+  "tower": {
+    "label": "Башня — пример на фотографии",
+    "roi": [0.47, 0.20, 0.24, 0.58],
+    "views": [
+      { "id": "demo", "label": "Исходная фотография", "image": "reference.png", "overlay": "wall-overlay.png" }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#101820">
+  <title>WebAR — башня и стена, распознавание без меток</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="shell">
+    <header class="toolbar">
+      <div><strong>WEBAR · <span>OPENCV</span></strong><small>Распознавание башни без меток</small></div>
+      <div class="tools"><a href="../wall-lab/">Редактор стены</a><a href="./setup.html">Добавить ракурс</a></div>
+    </header>
+    <section id="scene" class="scene" aria-label="Видео с камеры и реконструкция">
+      <video id="camera" autoplay muted playsinline webkit-playsinline></video>
+      <canvas id="overlay"></canvas>
+      <canvas id="debug"></canvas>
+      <div class="state" id="scan-hint">Наведите камеру на башню</div>
+    </section>
+    <section class="panel">
+      <label>Обзорная зона <select id="zone"></select></label>
+      <div class="buttons"><button id="start" class="accent">Включить камеру</button><button id="stop" disabled>Остановить</button><label class="file-button">Проверить фотографию <input id="file" type="file" accept="image/jpeg,image/png,image/webp" hidden></label></div>
+      <div class="toggles"><label><input id="show-overlay" type="checkbox" checked> Показывать стену</label><label><input id="show-debug" type="checkbox"> Показать найденную область</label></div>
+      <div id="status" role="status">Сначала запускаем сервер и загружаем ракурсы.</div>
+      <p class="description">Сервер сопоставляет естественные детали башни с эталонной фотографией. Стена перемещается по найденной перспективе. Это первый режим для <b>ограниченной зоны обзора</b>, пока без метрической 3D-позы и корректного параллакса при обходе башни.</p>
+      <details><summary>Подключение API на телефоне</summary><label>HTTPS-адрес твоего OpenCV-сервера <input id="api" placeholder="https://ar-api.example.org" type="url"></label><button id="save-api">Сохранить адрес</button><p>На компьютере с локальным сервером оставь поле пустым. Для GitHub Pages нужен отдельный HTTPS-сервер; обычный HTTP-адрес локального ПК браузер блокирует.</p></details>
+    </section>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

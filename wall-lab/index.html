@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebAR — редактор реконструкции стены</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="heading">
+      <span class="eyebrow">WEBAR · PHOTO LAB</span>
+      <h1>Черновая реконструкция стены</h1>
+      <p>3D-стена поверх фотографии или живой камеры. Здесь подгоняется 3D-стена к опорному фото. Для распознавания в камере открой страницу «Трекинг OpenCV».</p>
+    </div>
+    <div class="header-links"><a href="../track/">Трекинг OpenCV</a><a href="../track/setup.html">Добавить ракурс</a></div>
+  </header>
+
+  <main class="workspace">
+    <section class="viewport-panel">
+      <div class="topline">
+        <strong id="view-mode-label">Контрольный ракурс · фотография</strong>
+        <span>Ручная подгонка · без автоматического трекинга</span>
+      </div>
+      <div id="stage" class="stage" role="img" aria-label="Фото башни с накладываемой 3D-стеной">
+        <img id="reference" src="./reference.png" alt="Контрольный снимок башни">
+        <video id="live-camera" autoplay muted playsinline webkit-playsinline hidden></video>
+        <div id="three" class="three"></div>
+        <canvas id="tower-mask" class="tower-mask" width="1200" height="934"></canvas>
+        <div id="anchor" class="anchor" title="Перетащите точку примыкания">
+          <span class="anchor-cross">+</span>
+        </div>
+      </div>
+      <div class="viewport-note">
+        <span id="status">Инициализация Three.js...</span>
+        <span class="legend"><span class="legend-dot"></span> Точка примыкания — нижняя точка стены у башни</span>
+      </div>
+      <div class="actions">
+        <button id="start-camera" class="accent" type="button">Включить камеру</button>
+        <button id="stop-camera" type="button" hidden>Вернуться к фото</button>
+        <label class="file-button">Открыть свой ракурс <input type="file" id="load-reference" accept="image/*" hidden></label>
+        <button id="save-reference">Скачать эталон для OpenCV</button>
+        <button id="save-image">Сохранить макет PNG</button>
+        <button id="save-overlay" class="accent">Экспорт прозрачной стены PNG</button>
+        <button id="export-glb" class="accent">Экспортировать стену GLB</button>
+        <button id="save-json">Скачать настройки JSON</button>
+      </div>
+    </section>
+
+    <aside class="controls">
+      <h2>Геометрия</h2>
+      <p class="hint">Размеры пока условные. Для реального масштаба понадобится измерение башни и параметры камеры.</p>
+      <div id="controls"></div>
+      <div class="toggles">
+        <label><input type="checkbox" data-field="roof"> Деревянная кровля</label>
+        <label><input type="checkbox" data-field="slots"> Бойницы и балки</label>
+        <label><input type="checkbox" data-field="occlusion"> Башня перекрывает стену</label>
+        <label><input type="checkbox" data-field="showAnchor"> Показывать точку привязки</label>
+      </div>
+      <h2>Редактирование</h2>
+      <div class="actions column">
+        <button id="reset">Вернуть исходные настройки</button>
+        <button id="copy-json">Копировать настройки JSON</button>
+        <label class="file-button">Загрузить сохранённый JSON<input type="file" id="load-json" accept=".json,application/json" hidden></label>
+      </div>
+      <p class="fineprint" id="camera-note">Для камеры на телефоне открывай эту страницу по HTTPS (например, через GitHub Pages). На локальном HTTP-адресе вида 192.168.x.x браузер может запретить камеру. Для автоматического слежения за башней используйте страницу /track/ — этот редактор только готовит 3D-стену для ракурса.</p>
+      <p class="fineprint">Экспорт GLB содержит только стену с началом координат в точке примыкания; сама фотография в него не входит. JSON сохраняет настройки подгонки снимка.</p>
+    </aside>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
