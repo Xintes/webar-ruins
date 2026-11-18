@@ -1,0 +1,15 @@
+{
+  "_note": "Future observation zone specification only; NOT loaded by WebAR v1.4. Nulls deliberately mean unmeasured, not zero.",
+  "tower": {
+    "viewpoint_id": "tower-zone-a",
+    "viewpoint_position_m": null,
+    "approximate_distance_to_landmark_m": null,
+    "view_direction_degrees": null,
+    "camera_height_range_m": null,
+    "camera_intrinsics": null,
+    "known_landmark_points_3d_m": [],
+    "reconstruction_model_glb": null,
+    "model_transform_in_landmark_coordinates": null,
+    "prepared_reference_views": ["demo"]
+  }
+}

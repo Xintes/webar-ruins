@@ -1,4 +1,4 @@
-// WebAR Markerless Stage 1.3: OpenCV SIFT/ORB + RANSAC на сервере.
+// WebAR Markerless Stage 1.4: OpenCV SIFT/ORB + RANSAC на сервере.
 // Лёгкое локальное отслеживание смещения изображения между ответами сервера.
 // НЕ является метрической 3D-локализацией и не компенсирует параллакс.
 import { toGray, estimateTranslation, shiftHomography, holdDurationMs, visibilityAt } from './motion.js';
@@ -15,11 +15,14 @@ const defaultAPI = location.hostname.endsWith('.github.io') ? 'https://webar-rui
 const apiOrigin = (urlParams.get('api') || savedAPI || defaultAPI).replace(/\/+$/, '');
 apiInput.value = apiOrigin;
 
-const SEND_INTERVAL_MS = 550;
+// One request at a time; immediately examine a fresh frame after a missed capture.
+const RETRY_DELAY_MS = 100;
+const TRACKED_DELAY_MS = 700;
 const FLOW_INTERVAL_MS = 160;
 const MAX_REQUEST_MS = 16000;
 const MOTION_WIDTH = 256;
 const JPEG_WIDTH = 840;
+const SEARCH_JPEG_WIDTH = 960;
 let stream = null, running = false, busy = false, timer = null;
 let currentPose = null, targetPose = null, currentImage = null, currentImageUrl = '';
 const imageCanvas = document.createElement('canvas');
@@ -32,6 +35,8 @@ let photoMode = false, photoUrl = null;
 let lastGoodAt = null, holdMs = 5500, missCount = 0, secondMissAt = null;
 let apiReady = false, trackingGeneration = 0, shownState = '';
 let requestAbort = null;
+let lastRecognizedView = '';
+let hintCooldownUntil = 0;
 
 function apiPath(path) { return apiOrigin + path; }
 function setStatus(message) { status.textContent = message; }
@@ -226,9 +231,49 @@ function render(ts) {
   }
   requestAnimationFrame(render);
 }
+function scheduleFrame(delayMs) {
+  clearTimeout(timer);
+  if (running) timer = setTimeout(sendCameraFrame, delayMs);
+}
+
+// При устойчивом захвате проверяем известную область башни вместо всего кадра.
+// Координаты нормализованы, чтобы оставаться верными после изменения JPEG-размера.
+// При сильном движении/потере локального слежения подсказку не отправляем.
+function getTrackingHint(snapshot) {
+  if (!running || !targetPose || !motion.ok || lastGoodAt === null ||
+      performance.now() - lastGoodAt > 3500 || performance.now() < hintCooldownUntil) return null;
+  const pose = targetPose;
+  if (!Array.isArray(pose.roi_polygon) || pose.roi_polygon.length !== 4 ||
+      !pose.frame_width || !pose.frame_height || !viewW || !viewH) return null;
+  const dx = (snapshot.x - pose.captureMotionX) * pose.frame_width / viewW;
+  const dy = (snapshot.y - pose.captureMotionY) * pose.frame_height / viewH;
+  const xs = pose.roi_polygon.map(p => p[0] + dx);
+  const ys = pose.roi_polygon.map(p => p[1] + dy);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const padX = Math.max(60, (maxX - minX) * .35);
+  const padY = Math.max(60, (maxY - minY) * .35);
+  const x0 = Math.max(0, minX - padX) / pose.frame_width;
+  const y0 = Math.max(0, minY - padY) / pose.frame_height;
+  const x1 = Math.min(pose.frame_width, maxX + padX) / pose.frame_width;
+  const y1 = Math.min(pose.frame_height, maxY + padY) / pose.frame_height;
+  if (x1 - x0 < .12 || y1 - y0 < .12 || (x1 - x0) * (y1 - y0) < .07) return null;
+  return [x0, y0, x1 - x0, y1 - y0].map(n => Math.round(n * 10000) / 10000);
+}
+
+function serverTiming(result, elapsed) {
+  if (!Number.isFinite(result.processing_ms)) return `запрос ${Math.round(elapsed)} мс`;
+  const networkMs = Math.max(0, Math.round(elapsed - result.processing_ms));
+  const mode = result.search_mode === 'hint' ? 'быстрый поиск' : 'полный поиск';
+  return `${mode} · OpenCV ${Math.round(result.processing_ms)} мс · сеть/ожидание ${networkMs} мс`;
+}
+
 async function analyze(blob, generation = trackingGeneration, snapshot = { x: motion.x, y: motion.y }) {
   const fd = new FormData();
   fd.append('frame', blob, 'frame.jpg'); fd.append('zone', zonePicker.value);
+  if (lastRecognizedView) fd.append('preferred_view', lastRecognizedView);
+  const hint = photoMode ? null : getTrackingHint(snapshot);
+  if (hint) fd.append('hint_roi', JSON.stringify(hint));
   const started = performance.now();
   const controller = new AbortController();
   requestAbort = controller;
@@ -247,6 +292,8 @@ async function analyze(blob, generation = trackingGeneration, snapshot = { x: mo
   if (generation !== trackingGeneration) return;
   const elapsed = performance.now() - started;
   if (!result.found) {
+    // После промаха в предполагаемой области обязательно ищем по всему кадру.
+    if (result.search_mode === 'hint') hintCooldownUntil = performance.now() + 8000;
     if (targetPose) {
       missCount++;
       if (missCount >= 2 && secondMissAt === null) secondMissAt = performance.now();
@@ -254,25 +301,34 @@ async function analyze(blob, generation = trackingGeneration, snapshot = { x: mo
     } else {
       setHint('Не найдено — приблизьтесь к опорному ракурсу');
     }
-    setStatus(`OpenCV: ${result.reason || 'Нет совпадений'}. Запрос ${Math.round(elapsed)} мс. Пропусков: ${missCount}`);
+    setStatus(`OpenCV: ${result.reason || 'Нет совпадений'} · ${serverTiming(result, elapsed)} · совпадений ${result.matched ?? 0}, подтверждено ${result.inliers ?? 0}`);
     return;
   }
   await loadOverlay(result);
   if (generation !== trackingGeneration) return;
   if (targetPose?.view !== result.view) currentPose = null;
+  lastRecognizedView = result.view;
+  hintCooldownUntil = 0;
   targetPose = { ...result, captureMotionX: snapshot.x, captureMotionY: snapshot.y };
   lastGoodAt = performance.now();
   holdMs = photoMode ? Number.POSITIVE_INFINITY : holdDurationMs(elapsed);
   missCount = 0; secondMissAt = null; shownState = '';
   setHint('Башня распознана · стена привязана');
-  setStatus(`Ракурс: ${result.view_label} · ${result.algorithm} · подтверждённых точек: ${result.inliers} · ошибка: ${result.median_error_px} px · запрос: ${Math.round(elapsed)} мс · удержание: ${photoMode ? 'фото' : (holdMs / 1000).toFixed(1) + ' с'}`);
+  setStatus(`Ракурс: ${result.view_label} · ${result.algorithm} · ${serverTiming(result, elapsed)} · подтверждённых точек ${result.inliers} · ошибка ${result.median_error_px} px`);
 }
 async function sendCameraFrame() {
-  if (!running || busy || video.readyState < 2) return;
+  if (!running) return;
+  if (busy || video.readyState < 2) { scheduleFrame(120); return; }
   busy = true;
   const generation = trackingGeneration;
   const snapshot = { x: motion.x, y: motion.y };
   try {
+    // When searching, transmit more details. After capture, save bandwidth.
+    const width = Math.min(lastGoodAt === null ? SEARCH_JPEG_WIDTH : JPEG_WIDTH, viewW);
+    if (imageCanvas.width !== width) {
+      imageCanvas.width = width;
+      imageCanvas.height = Math.max(1, Math.round(viewH * width / viewW));
+    }
     imageCtx.drawImage(video, 0, 0, imageCanvas.width, imageCanvas.height);
     const blob = await new Promise(resolve => imageCanvas.toBlob(resolve, 'image/jpeg', 0.69));
     if (blob && running && generation === trackingGeneration) await analyze(blob, generation, snapshot);
@@ -282,6 +338,7 @@ async function sendCameraFrame() {
     }
   } finally {
     busy = false;
+    if (running) scheduleFrame(lastGoodAt === null || performance.now() - lastGoodAt > 3500 ? RETRY_DELAY_MS : TRACKED_DELAY_MS);
   }
 }
 async function startCamera() {
@@ -303,7 +360,8 @@ async function startCamera() {
     clearTracking();
     motion = { x: 0, y: 0, ok: false }; lastGray = null; lastFlowAt = 0;
     setHint('Направьте камеру на башню');
-    timer = setInterval(sendCameraFrame, SEND_INTERVAL_MS);
+    lastRecognizedView = '';
+    hintCooldownUntil = 0;
     sendCameraFrame();
   } catch (e) {
     setStatus(`Камера не запустилась: ${e.message}`);
@@ -314,11 +372,12 @@ function stopCamera() {
   trackingGeneration++;
   requestAbort?.abort(); requestAbort = null;
   running = false;
-  clearInterval(timer); timer = null;
+  clearTimeout(timer); timer = null;
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   video.pause(); video.srcObject = null; video.hidden = true;
   startButton.disabled = false; stopButton.disabled = true;
   lastGray = null; motion = { x: 0, y: 0, ok: false };
+  lastRecognizedView = ''; hintCooldownUntil = 0;
   clearTracking(); setHint('Камера выключена');
 }
 async function analyzeImageFile(file) {
@@ -367,7 +426,9 @@ zonePicker.addEventListener('change', () => {
   trackingGeneration++;
   requestAbort?.abort();
   clearTracking();
+  lastRecognizedView = ''; hintCooldownUntil = 0;
   lastGray = null;
+  if (running) scheduleFrame(150);
 });
 $('save-api').addEventListener('click', () => {
   const val = apiInput.value.trim().replace(/\/+$/, '');

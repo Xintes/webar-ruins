@@ -81,12 +81,27 @@ def track_zones():
 
 
 @app.post("/api/track/frame")
-def track_frame(zone: str = Form("tower"), frame: UploadFile = File(...)):
+def track_frame(zone: str = Form("tower"), frame: UploadFile = File(...),
+                preferred_view: str = Form(""), hint_roi: str = Form("")):
     if zone not in get_zones():
         raise HTTPException(status_code=404, detail="Неизвестная зона обзора")
     raw = frame.file.read(3_000_001)
     try:
-        return {"zone": zone, **track(decode_image(raw), zone)}
+        roi = None
+        if hint_roi:
+            try:
+                roi = json.loads(hint_roi)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Неверный формат подсказки ROI") from exc
+            if not isinstance(roi, list) or len(roi) != 4:
+                raise ValueError("ROI должен быть списком из 4 чисел")
+            try:
+                roi = [float(value) for value in roi]
+            except (TypeError, ValueError) as exc:
+                raise ValueError("ROI содержит нечисловые координаты") from exc
+        return {"zone": zone, **track(decode_image(raw), zone,
+                                      preferred_view=preferred_view or None,
+                                      hint_roi=roi)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

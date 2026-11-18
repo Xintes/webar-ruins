@@ -13,6 +13,7 @@ import json
 import math
 import re
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -121,60 +122,79 @@ def reference_cache() -> dict[str, list[View]]:
     return result
 
 
-def _try_view(view: View, gray: np.ndarray, keypoints, descriptors) -> dict | None:
+# Пороги проверки геометрии сохраняем строгими, чтобы не распознавать чужую кладку.
+_REASON_TEXT = {
+    "no_reference": "Для зоны нет подготовленных эталонных кадров",
+    "low_texture": "В кадре недостаточно характерных деталей",
+    "few_matches": "Недостаточно согласованных характерных точек",
+    "ransac_failure": "Не удалось подтвердить геометрию совпадений",
+    "few_inliers": "Недостаточно геометрически подтверждённых совпадений",
+    "reprojection_error": "Слишком велика ошибка сопоставления",
+    "low_coverage": "Совпадения сосредоточены на слишком маленьком участке",
+    "invalid_geometry": "Недостоверная перспектива найденного объекта",
+    "hint_miss": "Не удалось подтвердить прежнее положение — переходим к поиску по всему кадру",
+}
+
+
+def _try_view(view: View, frame_shape: tuple[int, int], keypoints, descriptors,
+              offset: tuple[int, int] = (0, 0)) -> tuple[dict | None, dict]:
+    info = {"reason_code": "few_matches", "matched": 0, "inliers": 0}
     matcher = cv2.BFMatcher(view.norm)
-    # взаимная проверка соседства дескрипторов (ratio test)
     try:
         pairs = matcher.knnMatch(view.descriptors, descriptors, k=2)
     except cv2.error:
-        return None
+        return None, info
     matches = [p[0] for p in pairs if len(p) == 2 and p[0].distance < 0.72 * p[1].distance]
+    info["matched"] = len(matches)
     if len(matches) < 15:
-        return None
+        return None, info
     src = np.float32([view.points[m.queryIdx] for m in matches])
-    dst = np.float32([keypoints[m.trainIdx].pt for m in matches])
+    dst = np.float32([(keypoints[m.trainIdx].pt[0] + offset[0],
+                       keypoints[m.trainIdx].pt[1] + offset[1]) for m in matches])
     H, mask = cv2.findHomography(src, dst, cv2.RANSAC, 4.5,
                                 maxIters=2500, confidence=0.997)
+    info["reason_code"] = "ransac_failure"
     if H is None or mask is None or not np.isfinite(H).all():
-        return None
+        return None, info
     inliers = mask.reshape(-1).astype(bool)
     count = int(inliers.sum())
+    info["inliers"] = count
+    info["reason_code"] = "few_inliers"
     ratio = count / len(matches)
     if count < 15 or ratio < 0.48:
-        return None
+        return None, info
     predicted = cv2.perspectiveTransform(src[inliers].reshape(-1, 1, 2), H).reshape(-1, 2)
     error = np.linalg.norm(predicted - dst[inliers], axis=1)
     med_error = float(np.median(error))
+    info["reason_code"] = "reprojection_error"
     if med_error > 4.5:
-        return None
-    # Область совпадений должна быть распределена, а не собрана на одном кирпиче.
+        return None, info
     src_in = src[inliers]
     bb = np.ptp(src_in, axis=0)
     region_area = max(1, view.region[2] * view.region[3])
     coverage = float(bb[0] * bb[1] / region_area)
+    info["reason_code"] = "low_coverage"
     if coverage < 0.045:
-        return None
-    frame_h, frame_w = gray.shape[:2]
+        return None, info
+    frame_h, frame_w = frame_shape
     x, y, w, h = view.region
     roi_corners = np.float32([[x, y], [x+w, y], [x+w, y+h], [x, y+h]]).reshape(-1, 1, 2)
     transformed = cv2.perspectiveTransform(roi_corners, H).reshape(-1, 2)
+    info["reason_code"] = "invalid_geometry"
     area = float(abs(cv2.contourArea(transformed.astype(np.float32))))
     if not np.isfinite(transformed).all() or not cv2.isContourConvex(transformed.astype(np.float32)):
-        return None
+        return None, info
     if area < frame_w * frame_h * 0.005 or area > frame_w * frame_h * 2.0:
-        return None
-    # Устранение явно вывернутых/некорректных перспектив.
+        return None, info
     edge_a = np.linalg.norm(np.roll(transformed, -1, axis=0) - transformed, axis=1)
     if np.min(edge_a) < 8 or max(edge_a) / max(1, min(edge_a)) > 22:
-        return None
+        return None, info
     visible = np.any((transformed[:, 0] >= -0.5*frame_w) &
                      (transformed[:, 0] <= 1.5*frame_w) &
                      (transformed[:, 1] >= -0.5*frame_h) &
                      (transformed[:, 1] <= 1.5*frame_h))
-    if not visible:
-        return None
-    if abs(float(H[2, 2])) < 1e-9:
-        return None
+    if not visible or abs(float(H[2, 2])) < 1e-9:
+        return None, info
     H = H / H[2, 2]
     score = count * ratio * min(1., coverage * 6) / (1. + med_error / 5.)
     return {
@@ -188,30 +208,90 @@ def _try_view(view: View, gray: np.ndarray, keypoints, descriptors) -> dict | No
         "inlier_ratio": round(ratio, 3), "median_error_px": round(med_error, 2),
         "coverage": round(coverage, 3),
         "algorithm": view.algorithm, "_score": score,
-    }
+    }, info
 
 
-def track(frame: np.ndarray, zone: str) -> dict:
+def _hint_region(image_shape: tuple[int, int], hint_roi: list[float] | None):
+    """Validated normalized rectangle (x, y, width, height) of expected location."""
+    if hint_roi is None:
+        return None
+    if len(hint_roi) != 4 or not all(math.isfinite(n) for n in hint_roi):
+        return None
+    x, y, w, h = hint_roi
+    if not (0 <= x < 1 and 0 <= y < 1 and 0.12 <= w <= 1 and 0.12 <= h <= 1):
+        return None
+    height, width = image_shape
+    x0, y0 = round(x * width), round(y * height)
+    x1, y1 = min(width, round((x + w) * width)), min(height, round((y + h) * height))
+    if x1 - x0 < 80 or y1 - y0 < 80:
+        return None
+    # Tiny hint crops are untrustworthy for a spatial match.
+    if (x1 - x0) * (y1 - y0) < width * height * 0.07:
+        return None
+    return (x0, y0, x1, y1)
+
+
+def track(frame: np.ndarray, zone: str, preferred_view: str | None = None,
+          hint_roi: list[float] | None = None) -> dict:
+    """Find a reference feature homography, optionally starting with known region.
+
+    Cropped search is a *single cheap attempt*, not an additional global pass.
+    On crop failure the client must send the next frame without hint_roi.
+    """
+    started = time.perf_counter()
+    def finished(result, *, mode, feature_ms=0.0, match_ms=0.0, features=0):
+        result.update({
+            "search_mode": mode,
+            "feature_count": features,
+            "feature_ms": round(feature_ms, 1),
+            "match_ms": round(match_ms, 1),
+            "processing_ms": round((time.perf_counter() - started) * 1000, 1),
+        })
+        return result
+
     views = reference_cache().get(zone)
     if not views:
-        return {"found": False, "reason": "Для зоны нет подготовленных эталонных кадров"}
+        return finished({"found": False, "reason_code": "no_reference", "reason": _REASON_TEXT["no_reference"]}, mode="global")
     frame = _limit_width(frame, _MAX_FRAME_WIDTH)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    feature, norm, alg = _features()
-    kp, desc = feature.detectAndCompute(gray, None)
-    if desc is None or len(kp) < 15:
-        return {"found": False, "reason": "В кадре недостаточно характерных деталей"}
+    region = _hint_region(gray.shape[:2], hint_roi)
+    mode = "hint" if region else "global"
+    feature = _features()[0]
+    if region:
+        x0, y0, x1, y1 = region
+        kps, desc = feature.detectAndCompute(gray[y0:y1, x0:x1], None)
+        offset = (x0, y0)
+    else:
+        kps, desc = feature.detectAndCompute(gray, None)
+        offset = (0, 0)
+    feature_ms = (time.perf_counter() - started) * 1000
+    num_features = len(kps or [])
+    if desc is None or num_features < 15:
+        code = "hint_miss" if region else "low_texture"
+        return finished({"found": False, "reason_code": code, "reason": _REASON_TEXT[code], "matched": 0, "inliers": 0},
+                        mode=mode, feature_ms=feature_ms, features=num_features)
+    ordered = sorted(views, key=lambda v: v.view_id != preferred_view)
     best = None
-    for view in views:
-        if view.norm != norm:
+    best_failure = {"reason_code": "few_matches", "matched": 0, "inliers": 0}
+    for view in ordered:
+        if view.norm != (cv2.NORM_L2 if view.algorithm == "SIFT" else cv2.NORM_HAMMING):
             continue
-        candidate = _try_view(view, gray, kp, desc)
+        candidate, info = _try_view(view, gray.shape[:2], kps, desc, offset)
+        if info["inliers"] > best_failure["inliers"] or (info["inliers"] == best_failure["inliers"] and info["matched"] > best_failure["matched"]):
+            best_failure = info
         if candidate is not None and (best is None or candidate["_score"] > best["_score"]):
             best = candidate
+            # With many trained viewpoints, last accepted view is usually sufficient.
+            if view.view_id == preferred_view and candidate["inliers"] >= 40 and candidate["inlier_ratio"] >= 0.60 and candidate["median_error_px"] <= 2.5:
+                break
+    match_ms = (time.perf_counter() - started) * 1000 - feature_ms
     if best is None:
-        return {"found": False, "reason": "Ракурс не распознан — наведите камеру ближе к опорной фотографии", "algorithm": alg}
+        code = "hint_miss" if region else best_failure["reason_code"]
+        return finished({"found": False, "reason_code": code, "reason": _REASON_TEXT[code],
+                         "matched": best_failure["matched"], "inliers": best_failure["inliers"]},
+                        mode=mode, feature_ms=feature_ms, match_ms=match_ms, features=num_features)
     best.pop("_score")
-    return best
+    return finished(best, mode=mode, feature_ms=feature_ms, match_ms=match_ms, features=num_features)
 
 
 def register_view(zone: str, reference_data: bytes, overlay_data: bytes, roi: list[float] | None = None) -> str:
