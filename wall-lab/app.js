@@ -11,6 +11,7 @@ const STORAGE_KEY = "webar-wall-lab-v1";
 
 const DEFAULTS = Object.freeze({
   joinX: 565,       // низ левого края башни, пиксели исходного снимка
+  joinOverlap: 25, // удлинить стену в сторону башни (px на исходном снимке)
   baseY: 750,       // нижний стык стены и башни в пикселях
   length: 9.1,      // условные 3D единицы, НЕ метры
   height: 5.85,
@@ -26,6 +27,7 @@ const DEFAULTS = Object.freeze({
 
 const FIELD_SPEC = [
   ["joinX", "Стык X на снимке (px)", 100, 1050, 1],
+  ["joinOverlap", "Нахлёст стены на башню (px)", 0, 70, 1],
   ["baseY", "Стык у основания Y (px)", 300, 920, 1],
   ["length", "Длина стены", 0.5, 16, 0.1],
   ["height", "Высота стены", 0.5, 9, 0.05],
@@ -162,17 +164,24 @@ function buildWall() {
   wallMount.add(wallModel);
 
   const { length: L, height: H, thickness: T } = settings;
+  // 3D-геометрия продлевается только в сторону примыкания (+X).
+  // Левый внешний торец остаётся на месте при изменении нахлёста.
+  const referenceWorldWidth = 2 * CAMERA_DISTANCE *
+    Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV) / 2) *
+    (IMAGE_WIDTH / IMAGE_HEIGHT);
+  const overlapWorld = (settings.joinOverlap / IMAGE_WIDTH) * referenceWorldWidth;
+  const extendedLength = L + overlapWorld;
   const texture = brickTexture.clone();
   texture.repeat.set(Math.max(1, L / 2.2), Math.max(1, H / 2.4));
   texture.needsUpdate = true;
   const brick = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.99 });
   brick.color.setRGB(settings.brightness, settings.brightness, settings.brightness);
-  const body = addMesh(wallModel, new THREE.BoxGeometry(L, H, T), brick, -L / 2, H / 2, 0);
+  const body = addMesh(wallModel, new THREE.BoxGeometry(extendedLength, H, T), brick, -L / 2 + overlapWorld / 2, H / 2, 0);
   body.name = "Кирпичная стена";
-  addMesh(wallModel, new THREE.BoxGeometry(L + 0.06, 0.16, T + 0.10), capStone, -L / 2, 0.08, 0).name = "Цоколь";
+  addMesh(wallModel, new THREE.BoxGeometry(extendedLength + 0.06, 0.16, T + 0.10), capStone, -L / 2 + overlapWorld / 2, 0.08, 0).name = "Цоколь";
   if (settings.roof) {
-    addMesh(wallModel, new THREE.BoxGeometry(L + 0.20, 0.22, T + 0.34), timber,
-      -L / 2, H + 0.14, 0).name = "Деревянная кровля";
+    addMesh(wallModel, new THREE.BoxGeometry(extendedLength + 0.20, 0.22, T + 0.34), timber,
+      -L / 2 + overlapWorld / 2, H + 0.14, 0).name = "Деревянная кровля";
   }
   if (settings.slots) {
     const n = Math.max(1, Math.min(32, Math.floor(L / 0.66)));
@@ -206,16 +215,21 @@ function updateWallPlacement() {
   anchor.hidden = !settings.showAnchor;
 }
 
+// Левый реальный край башни на ЭТОЙ эталонной фотографии.
+// Маска накрывает соединение и не позволяет виртуальному кирпичу
+// попадать поверх существующей башни. Для нового ракурса нужна своя маска.
+const TOWER_OCCLUSION_POLYGON = [
+  [575, 392], [842, 392], [842, 610], [847, 743], [866, 847],
+  [576, 847], [573, 765], [574, 740], [574, 555]
+];
+
 function drawTowerOcclusion() {
   const ctx = maskCanvas.getContext("2d");
   ctx.clearRect(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
   if (cameraMode || !settings.occlusion || !image.complete || image.naturalWidth === 0) return;
   // Ручная маска по фотографии, чтобы 3D-стена не рисовалась поверх башни.
   // Это маска ТОЛЬКО для текущего контрольного снимка.
-  const polygon = [
-    [561, 392], [842, 392], [842, 610], [847, 743], [866, 847],
-    [557, 847], [560, 765], [573, 740], [567, 555]
-  ];
+  const polygon = TOWER_OCCLUSION_POLYGON;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(...polygon[0]);
@@ -407,12 +421,27 @@ function renderOverlayAtReferenceSize() {
   out.height = IMAGE_HEIGHT;
   const ctx = out.getContext("2d");
   ctx.drawImage(renderer.domElement, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
+  // Стена на непрозрачном кирпиче не должна показывать фон сквозь себя.
+  // Для гладких границ сохраняем частичную альфу только по самому краю.
+  const imageData = ctx.getImageData(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
+  const pixels = imageData.data;
+  const pixelsW = IMAGE_WIDTH;
+  for (let y = 1; y < IMAGE_HEIGHT - 1; y += 1) {
+    for (let x = 1; x < IMAGE_WIDTH - 1; x += 1) {
+      const i = (y * pixelsW + x) * 4 + 3;
+      if (pixels[i] < 50) continue;
+      if (pixels[i - 4] > 50 && pixels[i + 4] > 50 &&
+          pixels[i - pixelsW * 4] > 50 && pixels[i + pixelsW * 4] > 50) {
+        pixels[i] = 255;
+      }
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
   if (settings.occlusion && !customReference) {
     // Удаляем альфу там, где на исходном снимке проходит реальная башня.
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    const polygon = [[561,392],[842,392],[842,610],[847,743],[866,847],
-                     [557,847],[560,765],[573,740],[567,555]];
+    const polygon = TOWER_OCCLUSION_POLYGON;
     ctx.moveTo(...polygon[0]);
     for (const pt of polygon.slice(1)) ctx.lineTo(...pt);
     ctx.closePath();ctx.fill();
