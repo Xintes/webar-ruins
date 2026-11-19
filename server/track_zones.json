@@ -1,9 +1,80 @@
 {
   "tower": {
     "label": "Башня — пример на фотографии",
-    "roi": [0.47, 0.20, 0.24, 0.58],
+    "roi": [
+      0.47,
+      0.2,
+      0.24,
+      0.58
+    ],
     "views": [
-      { "id": "demo", "label": "Исходная фотография", "image": "reference.png", "overlay": "wall-overlay.png" }
+      {
+        "id": "demo",
+        "label": "Исходная фотография",
+        "image": "reference.png",
+        "overlay": "wall-overlay.png",
+        "features": "demo-sift.npz"
+      }
+    ]
+  },
+  "venus_head": {
+    "label": "Бюст — глаза, нос, рот (эксперимент)",
+    "roi": [
+      0.0,
+      0.0,
+      1.0,
+      1.0
+    ],
+    "views": [
+      {
+        "id": "front",
+        "label": "Анфас",
+        "image": "front.png",
+        "overlay": "front-anchors.png",
+        "features": "front-sift.npz"
+      },
+      {
+        "id": "quarter_right",
+        "label": "Три четверти — лицо вправо",
+        "image": "quarter_right.png",
+        "overlay": "quarter_right-anchors.png",
+        "features": "quarter_right-sift.npz"
+      },
+      {
+        "id": "profile_right",
+        "label": "Профиль — лицо вправо",
+        "image": "profile_right.png",
+        "overlay": "profile_right-anchors.png",
+        "features": "profile_right-sift.npz"
+      },
+      {
+        "id": "quarter_left",
+        "label": "Три четверти — лицо влево",
+        "image": "quarter_left.png",
+        "overlay": "quarter_left-anchors.png",
+        "features": "quarter_left-sift.npz"
+      },
+      {
+        "id": "profile_left",
+        "label": "Профиль — лицо влево",
+        "image": "profile_left.png",
+        "overlay": "profile_left-anchors.png",
+        "features": "profile_left-sift.npz"
+      },
+      {
+        "id": "high_center",
+        "label": "Верхний — по центру",
+        "image": "high_center.png",
+        "overlay": "high_center-anchors.png",
+        "features": "high_center-sift.npz"
+      },
+      {
+        "id": "high_back_left",
+        "label": "Верхний — сзади сбоку",
+        "image": "high_back_left.png",
+        "overlay": "high_back_left-anchors.png",
+        "features": "high_back_left-sift.npz"
+      }
     ]
   }
 }

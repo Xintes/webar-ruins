@@ -92,14 +92,65 @@ def reference_cache() -> dict[str, list[View]]:
             path = REF_ROOT / zone / fn
             if not path.exists():
                 continue
-            image = cv2.imread(str(path), cv2.IMREAD_COLOR)
-            if image is None:
+            # Reference PNG may contain an alpha mask: exclude the room/background
+            # from keypoint detection without altering the pixels of the bust itself.
+            # A pre-baked SIFT/ORB set avoids costly reference feature extraction
+            # when a free cloud instance wakes up. The feature file is trusted
+            # only when listed in our local manifest and passes sanity checks.
+            cache_filename = item.get("features", "")
+            if (isinstance(cache_filename, str) and
+                    re.fullmatch(r"[a-zA-Z0-9_-]+\.npz", cache_filename)):
+                descriptor_path = REF_ROOT / zone / cache_filename
+                if descriptor_path.is_file():
+                    try:
+                        with np.load(str(descriptor_path), allow_pickle=False) as feature_data:
+                            p = np.asarray(feature_data["points"], dtype=np.float32)
+                            d = np.asarray(feature_data["descriptors"])
+                            reference_region = tuple(int(v) for v in feature_data["region"])
+                            original_size = tuple(int(v) for v in feature_data["image_size"])
+                            algorithm = str(feature_data["algorithm"].item())
+                            norm = int(feature_data["norm"].item())
+                        expected_width = 128 if algorithm == "SIFT" else 32
+                        expected_norm = cv2.NORM_L2 if algorithm == "SIFT" else cv2.NORM_HAMMING
+                        valid = (algorithm in ("SIFT", "ORB") and
+                                 (algorithm != "SIFT" or hasattr(cv2, "SIFT_create")) and
+                                 norm == expected_norm and p.ndim == 2 and p.shape[1] == 2 and
+                                 d.ndim == 2 and d.shape[1] == expected_width and
+                                 14 <= len(p) <= 6000 and len(p) == len(d) and
+                                 len(reference_region) == 4 and len(original_size) == 2 and
+                                 min(original_size) >= 120 and np.isfinite(p).all())
+                        if valid:
+                            result[zone].append(View(zone, item["id"], item.get("label", item["id"]),
+                                                     original_size, reference_region,
+                                                     p, d, overlay, norm, algorithm))
+                            continue
+                    except (OSError, KeyError, TypeError, ValueError, IndexError):
+                        # Bad/missing cache must not disable training: fall back
+                        # to extracting descriptors directly from the PNG alpha.
+                        pass
+            source = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+            if source is None:
+                continue
+            ref_mask = None
+            if source.ndim == 3 and source.shape[2] == 4:
+                ref_mask = source[:, :, 3]
+                image = cv2.cvtColor(source, cv2.COLOR_BGRA2BGR)
+            elif source.ndim == 3 and source.shape[2] == 3:
+                image = source
+            elif source.ndim == 2:
+                image = cv2.cvtColor(source, cv2.COLOR_GRAY2BGR)
+            else:
                 continue
             orig_h, orig_w = image.shape[:2]
             if min(orig_h, orig_w) < 120:
                 continue
             resized = _limit_width(image, _MAX_REFERENCE_WIDTH)
             rh, rw = resized.shape[:2]
+            if ref_mask is not None:
+                scaled_mask = cv2.resize(ref_mask, (rw, rh), interpolation=cv2.INTER_AREA)
+                ref_mask = (scaled_mask >= 200).astype(np.uint8) * 255
+                # Keep contour/alpha fringes from creating artificial SIFT features.
+                ref_mask = cv2.erode(ref_mask, np.ones((5, 5), np.uint8))
             # ROI можно задавать для каждой обзорной зоны. Не включать небо!
             roi = item.get("roi", cfg.get("roi", [0.42, 0.17, 0.32, 0.66]))
             x, y, w, h = [float(i) for i in roi]
@@ -109,7 +160,8 @@ def reference_cache() -> dict[str, list[View]]:
             y1 = max(y0 + 1, min(rh, round((y + h) * rh)))
             gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
             feature, norm, alg = _features()
-            kps, desc = feature.detectAndCompute(gray[y0:y1, x0:x1], None)
+            roi_mask = ref_mask[y0:y1, x0:x1] if ref_mask is not None else None
+            kps, desc = feature.detectAndCompute(gray[y0:y1, x0:x1], roi_mask)
             if desc is None or len(kps) < 14:
                 continue
             points = np.float32([((kp.pt[0] + x0) * orig_w / rw,
