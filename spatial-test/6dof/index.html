@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101b23">
+  <title>WebAR — пространственный тест 6DoF</title>
+  <link rel="stylesheet" href="./styles.css?v=2">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <span class="eyebrow">WEBAR · SPATIAL TEST v2</span>
+        <h1>Ходьба и повороты · 6DoF</h1>
+      </div>
+      <a href="../">Вернуться к 3DoF</a>
+    </header>
+
+    <section class="intro">
+      <p>Здесь <strong>стена получает фиксированные 3D-координаты</strong>, а WebXR отслеживает движения камеры. Шагните вперёд, назад и в сторону: стена должна оставаться на одном месте в комнате.</p>
+      <div id="support" class="support" role="status" aria-live="polite">Проверяем поддержку WebXR AR…</div>
+      <button type="button" id="start-ar" class="primary" disabled>Запустить пространственный AR</button>
+      <p class="small">Для проверки используйте Android + Chrome + Google Play Services for AR. Откройте страницу <strong>в самом Chrome</strong>, не во встроенном браузере мессенджера. Для 6DoF не нужны OpenCV, Render или VPN.</p>
+    </section>
+
+    <section class="settings" aria-label="Параметры модели">
+      <h2>Параметры до запуска</h2>
+      <div class="fields">
+        <label>Расстояние до стены <output id="distance-text">3.5 м</output>
+          <input type="range" id="distance" min="1.5" max="30" step="0.5" value="3.5">
+        </label>
+        <label>Смещение стены вправо/влево <output id="offset-text">0 м</output>
+          <input type="range" id="offset" min="-12" max="12" step="0.5" value="0">
+        </label>
+        <label>Высота камеры от пола <output id="camera-height-text">1.5 м</output>
+          <input type="range" id="camera-height" min="0.5" max="2.2" step="0.05" value="1.5">
+        </label>
+        <label>Поднять/опустить модель <output id="height-text">0 м</output>
+          <input type="range" id="height" min="-2" max="3" step="0.1" value="0">
+        </label>
+        <label>Повернуть стену <output id="yaw-text">0°</output>
+          <input type="range" id="yaw" min="-180" max="180" step="5" value="0">
+        </label>
+        <label>Масштаб модели <output id="scale-text">0.30×</output>
+          <input type="range" id="scale" min="0.1" max="3" step="0.05" value="0.3">
+        </label>
+        <label class="file-field">Своя модель .glb
+          <input id="model-file" type="file" accept=".glb,model/gltf-binary">
+        </label>
+      </div>
+      <p class="small">Расстояния здесь заданы вручную. Положение пола пока приближённое — по высоте камеры. Это испытание трекинга, а не автоматическое обнаружение башни или плоскости земли.</p>
+      <p id="model-info" class="small">Загружаем демонстрационную стену…</p>
+    </section>
+
+    <section class="instructions">
+      <h2>Порядок проверки</h2>
+      <ol>
+        <li>Включите AR и немного поводите камерой, чтобы телефон изучил окружение.</li>
+        <li>Наведите камеру туда, где должна стоять стена, и нажмите «Закрепить».</li>
+        <li>Не меняя настройки, шагните ближе, дальше, затем вбок на 1–2 метра.</li>
+        <li>Вернитесь к исходной точке — стена должна вернуться в исходное положение в кадре.</li>
+      </ol>
+      <p class="small">Привязка живёт <strong>в пределах текущей AR-сессии</strong>. При её завершении координаты не сохраняются. Если ARCore потеряет ориентацию или перестроит карту окружения, возможен дрейф и понадобится повторное закрепление.</p>
+    </section>
+  </main>
+
+  <div id="three-root" aria-hidden="true"></div>
+
+  <!-- DOM overlay is composited by WebXR on top of the AR camera. -->
+  <div id="ar-overlay" class="ar-overlay" aria-label="Управление AR">
+    <div class="ar-top">
+      <strong>WEBAR · 6DoF</strong>
+      <span id="ar-state">Инициализация трекинга…</span>
+    </div>
+    <div class="ar-bottom">
+      <div class="ar-metrics">
+        <span>Отошли от старта: <b id="moved">0.00 м</b></span>
+        <span>До стены: <b id="to-wall">—</b></span>
+      </div>
+      <div class="ar-distance">
+        <label for="ar-distance">Расстояние размещения <output id="ar-distance-text">3.5 м</output></label>
+        <input id="ar-distance" type="range" min="1.5" max="30" step="0.5" value="3.5">
+      </div>
+      <div class="ar-buttons">
+        <button id="place" type="button" class="primary">Закрепить стену</button>
+        <button id="relock" type="button">Перезакрепить</button>
+        <button id="exit-ar" type="button">Выход</button>
+      </div>
+      <p id="ar-tip">Пока не закреплено: стена следует за камерой. После закрепления она останется в одной точке.</p>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js?v=2"></script>
+</body>
+</html>

@@ -1,11 +1,21 @@
-WebAR Spatial Test - isolated GitHub Pages patch
+WEBAR SPATIAL TEST v2 — 6DoF
+====================================
+1) Распакуйте папку spatial-test в корень репозитория webar-ruins.
+   Рабочую папку spatial-test не удаляйте. Архив только добавляет новую
+   страницу spatial-test/6dof и копию demo-wall.glb.
+2) GitHub Desktop: Commit -> Push origin (ветка main).
+3) Откройте в Chrome на совместимом Android:
+   https://xintes.github.io/webar-ruins/spatial-test/6dof/
+4) Нажмите «Запустить пространственный AR», дайте разрешения,
+   плавно поводите камерой и нажмите «Закрепить стену».
+5) Шагайте ближе/дальше/вбок. Стена не должна двигаться вместе с телефоном.
 
-1. Unzip the archive.
-2. Copy the folder "spatial-test" as-is into the ROOT of your existing "webar-ruins" GitHub repository.
-   Do NOT place this inside "track", "server" or "wall-lab".
-3. GitHub Desktop: Commit to main -> Push origin.
-4. Open https://xintes.github.io/webar-ruins/spatial-test/
-5. Allow camera and orientation permissions, point the phone, tap "Закрепить направление", rotate in place.
+Если WebXR AR недоступен, браузер покажет это прямо на странице.
+На iPhone в обычном Safari полноценный WebXR immersive-ar недоступен.
+Старый тест 3DoF остается по /spatial-test/.
 
-Existing OpenCV and Render code are untouched.
-README with detailed usage: spatial-test/README.md
+Особенности:
+- OpenCV и Render не требуются.
+- Координаты привязки живут только в течение текущей сессии WebXR.
+- Высота пола приближенно рассчитывается из параметра «высота камеры».
+- Сцена не привязывается к башне автоматически: это следующий этап.
