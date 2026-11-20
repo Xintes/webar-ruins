@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d171e">
+  <title>WebAR — Spatial Test · 3DoF</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="header">
+    <div>
+      <span class="eyebrow">WEBAR · ЭКСПЕРИМЕНТ 3DoF</span>
+      <h1>Пространственная сцена</h1>
+    </div>
+    <a class="back" href="../track/">К OpenCV</a>
+  </header>
+
+  <main class="layout">
+    <section class="viewer" aria-label="Проверка 3D-модели поверх камеры">
+      <div id="stage" class="stage">
+        <video id="camera" autoplay muted playsinline webkit-playsinline></video>
+        <div id="webgl" class="webgl"></div>
+        <div class="crosshair" aria-hidden="true"><span></span></div>
+        <div class="stage-top">
+          <span class="pill" id="mode-label">Ручное управление</span>
+          <span class="pill" id="tracking-label">Не закреплено</span>
+        </div>
+        <div class="stage-bottom" id="stage-hint">Включите камеру и датчики. Затем наведите телефон в нужном направлении и нажмите «Закрепить направление».</div>
+      </div>
+
+      <div class="toolbar">
+        <button class="primary" id="start" type="button">Включить камеру и датчики</button>
+        <button id="lock" type="button" disabled>Закрепить направление</button>
+        <button id="recenter" type="button" disabled>Сбросить привязку</button>
+        <button id="stop" type="button" disabled>Остановить камеру</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite">Готово. Для камеры нужен HTTPS или localhost.</p>
+    </section>
+
+    <aside class="settings">
+      <h2>Настройки сцены</h2>
+      <p class="muted">Значения в метрах. Для первого опыта стойте на одном месте и поворачивайте телефон, не ходите вокруг.</p>
+      <div class="field">
+        <label for="control-mode">Отслеживание</label>
+        <select id="control-mode">
+          <option value="sensor">Датчики телефона (3DoF)</option>
+          <option value="manual">Мышь / пальцем по экрану</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label"><label for="distance">Расстояние до стены</label><output id="distance-value" for="distance">30 м</output></div>
+        <input type="range" id="distance" min="3" max="60" step="1" value="30">
+      </div>
+      <div class="field">
+        <div class="field-label"><label for="offset">Сдвиг стены вправо/влево</label><output id="offset-value" for="offset">0 м</output></div>
+        <input type="range" id="offset" min="-20" max="20" step="0.5" value="0">
+      </div>
+      <div class="field">
+        <div class="field-label"><label for="model-yaw">Поворот стены вокруг вертикали</label><output id="model-yaw-value" for="model-yaw">0°</output></div>
+        <input type="range" id="model-yaw" min="-90" max="90" step="1" value="0">
+      </div>
+      <div class="field">
+        <div class="field-label"><label for="model-scale">Масштаб модели</label><output id="model-scale-value" for="model-scale">1,00×</output></div>
+        <input type="range" id="model-scale" min="0.25" max="3" step="0.05" value="1">
+      </div>
+      <div class="field">
+        <div class="field-label"><label for="fov">Угол обзора виртуальной камеры</label><output id="fov-value" for="fov">60°</output></div>
+        <input type="range" id="fov" min="35" max="90" step="1" value="60">
+        <small>Нужен для примерного совпадения перспективы GLB и видеокамеры. Автоматической калибровки здесь пока нет.</small>
+      </div>
+      <div class="field">
+        <label for="model-file">Своя GLB-модель</label>
+        <input type="file" id="model-file" accept=".glb,model/gltf-binary">
+        <small>Файл читается только в браузере. По умолчанию загрузится демонстрационная стена из проекта.</small>
+      </div>
+      <div class="field check-row">
+        <label><input type="checkbox" id="show-grid"> Показать опорную сетку на земле</label>
+      </div>
+      <button id="reset-settings" type="button" class="small-button">Вернуть настройки сцены</button>
+
+      <h2>Диагностика</h2>
+      <dl class="diagnostics">
+        <div><dt>Датчики</dt><dd id="sensor-info">Нет данных</dd></div>
+        <div><dt>Поворот относительно привязки</dt><dd id="angle-info">0° / 0° / 0°</dd></div>
+        <div><dt>Модель</dt><dd id="model-info">Загрузка...</dd></div>
+        <div><dt>Камера</dt><dd id="camera-info">Выключена</dd></div>
+      </dl>
+      <p class="muted caveat">Это тест <strong>3DoF</strong>: положение камеры не измеряется. Модель останется в заданном направлении при поворотах, но не будет правильно смещаться при ходьбе. GPS, OpenCV и Render в этом тесте не используются.</p>
+    </aside>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
